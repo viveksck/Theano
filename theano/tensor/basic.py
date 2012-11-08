@@ -7,6 +7,8 @@ import warnings
 from itertools import izip
 
 import numpy
+import scipy.sparse as ssparse
+
 #from copy import copy as python_copy
 
 import theano
@@ -6326,7 +6328,7 @@ class AdvancedSubtensor1(Op):
 
         gz, = grads
         assert len(inputs) == 2
-        rval1 = [advanced_inc_subtensor1(zeros_like(inputs[0]), gz, inputs[1])]
+        rval1 = [advanced_inc_subtensor1(inputs[0], gz, inputs[1])]
         return rval1 + [DisconnectedType()()] * (len(inputs) - 1)
 
     def R_op(self, inputs, eval_points):
@@ -6344,7 +6346,7 @@ advanced_subtensor1 = AdvancedSubtensor1()
 class AdvancedIncSubtensor1(Op):
     """Increments a subtensor using advanced slicing (list of index)"""
     def __init__(self, inplace=False, set_instead_of_inc=False):
-        self.inplace = inplace
+        self.inplace = True
         self.set_instead_of_inc = set_instead_of_inc
         if inplace:
             self.destroy_map = {0: [0]}
@@ -6393,8 +6395,13 @@ class AdvancedIncSubtensor1(Op):
 
     def perform(self, node, inp, out_):
         # TODO opt to make this inplace
+
         x, y, idx = inp
         out, = out_
+
+        values = y
+        wrt = x
+
         if not self.inplace:
             x = x.copy()
         # In Numpy, x[idx] += y doesn't work if the same index is present
@@ -6403,6 +6410,13 @@ class AdvancedIncSubtensor1(Op):
         if self.set_instead_of_inc:
             x[idx] = y
         else:
+            import theano.sparse as sparse
+            import pdb; pdb.set_trace()
+            sparse_values = ssparse.lil_matrix(wrt.shape, dtype=wrt.dtype)
+            for i, j in enumerate(idx):
+              sparse_values[j,:] = values[i]
+            out[0] = sparse_values.tocsr()
+            return
             # If `y` has as many dimensions as `x`, then we want to iterate
             # jointly on `x` and `y`. Otherwise, it means `y` should be
             # broadcasted to fill all relevant rows of `x`.
