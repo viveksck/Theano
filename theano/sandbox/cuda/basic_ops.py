@@ -2421,6 +2421,46 @@ class GpuAdvancedIncSubtensor1(tensor.AdvancedIncSubtensor1, GpuOp):
                     x[i] += y
         out[0] = x
 
+    def c_code(self, node, name, inputs, outputs, sub):
+        inplace = int(self.inplace)
+        x = inputs[0]
+        y = inputs[1]
+        ind = inputs[2]
+        out = outputs[0]
+        fail = sub['fail']
+        return """
+        PyObject *xo, *yo, *rowx, *rowy, *to;
+        int *p;
+        int sizeofind, i,j;
+        PyObject *xind, *yind;
+        Py_XDECREF(%(out)s);
+        if (!%(inplace)s) 
+        {
+            %(out)s = (CudaNdarray*)CudaNdarray_Copy(%(x)s);
+        }
+        else
+        {
+            %(out)s = (%(x)s);
+            Py_XINCREF(%(out)s);
+        }
+
+        xo = (PyObject*)CudaNdarray_View(%(x)s);
+        yo = (PyObject*)CudaNdarray_View(%(y)s);
+        sizeofind = PyArray_SIZE(%(ind)s);
+        for (j = 0; j < sizeofind; j++)
+        {
+             p = (int *)PyArray_GETPTR1(%(ind)s, j);
+             xind = PyInt_FromLong(*p);
+             yind = PyInt_FromLong(j);
+             rowx = CudaNdarray_Subscript(xo, xind);
+             rowy = CudaNdarray_Subscript(yo, yind);
+             CudaNdarray_inplace_add(rowx, rowy);
+        }
+        if(!%(out)s){
+            %(fail)s;
+        }
+        """ % locals()
+
 
 class GpuIncSubtensor(tensor.IncSubtensor, GpuOp):
     """
