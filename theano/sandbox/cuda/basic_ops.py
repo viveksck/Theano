@@ -2422,6 +2422,9 @@ class GpuAdvancedIncSubtensor1(tensor.AdvancedIncSubtensor1, GpuOp):
         out[0] = x
 
     def c_code(self, node, name, inputs, outputs, sub):
+        if (self.set_instead_of_inc) or (node.inputs[0].ndim != node.inputs[1].ndim):
+            raise NotImplementedError("This case does not have C code yet.")
+ 
         inplace = int(self.inplace)
         x = inputs[0]
         y = inputs[1]
